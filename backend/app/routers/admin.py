@@ -1,0 +1,137 @@
+import json
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.database import get_db
+from app.models.like import Like
+from app.models.post import Post
+from app.models.report import Report
+from app.schemas.admin import AdminPostAction, AdminResolveReport
+from app.schemas.post import PostRead
+from app.schemas.report import ReportRead
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def verify_admin(authorization: str = Header(None)) -> None:
+    if not settings.admin_token:
+        raise HTTPException(403, "管理员功能未启用")
+    if not authorization:
+        raise HTTPException(401, "未提供管理员令牌")
+    token = authorization.removeprefix("Bearer ").strip()
+    if token != settings.admin_token:
+        raise HTTPException(403, "管理员令牌无效")
+
+
+@router.post("/login")
+def admin_login(authorization: str = Header(None)) -> dict:
+    if not settings.admin_token:
+        raise HTTPException(403, "管理员功能未启用")
+    if not authorization:
+        raise HTTPException(401, "未提供管理员令牌")
+    token = authorization.removeprefix("Bearer ").strip()
+    if token != settings.admin_token:
+        raise HTTPException(403, "管理员令牌无效")
+    return {"ok": True}
+
+
+@router.get("/posts", response_model=list[PostRead])
+def admin_list_posts(
+    status: str | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin),
+) -> list[PostRead]:
+    query = select(Post)
+    if status:
+        query = query.where(Post.status == status)
+    query = query.order_by(Post.created_at.desc()).offset(skip).limit(limit)
+    rows = db.scalars(query).all()
+
+    result = []
+    for post in rows:
+        like_count = db.scalar(
+            select(func.count()).select_from(Like).where(Like.post_id == post.id)
+        ) or 0
+        image_urls = []
+        try:
+            image_urls = json.loads(post.image_urls) if post.image_urls else []
+        except (json.JSONDecodeError, TypeError):
+            pass
+        result.append(
+            PostRead(
+                id=post.id,
+                title=post.title,
+                body=post.body,
+                category=post.category,
+                created_at=post.created_at,
+                image_urls=image_urls,
+                view_count=post.view_count or 0,
+                like_count=like_count,
+                is_liked=False,
+                status=post.status,
+            )
+        )
+    return result
+
+
+@router.patch("/posts/{post_id}")
+def admin_act_on_post(
+    post_id: int,
+    action: AdminPostAction,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin),
+) -> dict:
+    post = db.get(Post, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
+    if action.action == "delete":
+        db.delete(post)
+        db.commit()
+        return {"message": "帖子已删除"}
+    status_map = {"approve": "approved", "reject": "rejected"}
+    post.status = status_map[action.action]
+    db.commit()
+    return {"message": f"帖子已{post.status}", "status": post.status}
+
+
+@router.get("/reports", response_model=list[ReportRead])
+def admin_list_reports(
+    resolved: bool | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin),
+) -> list[ReportRead]:
+    query = select(Report)
+    if resolved is not None:
+        query = query.where(Report.resolved == resolved)
+    query = query.order_by(Report.created_at.desc()).offset(skip).limit(limit)
+    rows = db.scalars(query).all()
+    return [ReportRead.model_validate(r) for r in rows]
+
+
+@router.patch("/reports/{report_id}")
+def admin_resolve_report(
+    report_id: int,
+    payload: AdminResolveReport,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin),
+) -> dict:
+    report = db.get(Report, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="举报不存在")
+    report.resolved = payload.resolved
+    if not payload.resolved:
+        report.resolved_at = None
+        report.resolved_by = None
+    else:
+        report.resolved_at = datetime.now(timezone.utc)
+        report.resolved_by = "admin"
+    db.commit()
+    return {"message": "举报已处理"}

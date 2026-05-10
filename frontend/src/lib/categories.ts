@@ -1,6 +1,5 @@
 import type { Post } from "@/lib/posts";
 
-/** 与顶栏 Tab 对应的帖子分类 slug（写入 FastAPI `category` 字段） */
 export type PostCategorySlug = "casual" | "study" | "notice" | "ticket";
 
 export type NavTabSlug = "all" | "hot" | PostCategorySlug;
@@ -37,9 +36,6 @@ export function categoryLabel(slug: string): string {
 }
 
 export function filterPostsByTab(items: Post[], tab: NavTabSlug): Post[] {
-  if (tab === "all") return items;
-  if (tab === "hot") {
-    return [...items].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }
+  if (tab === "all" || tab === "hot") return items;
   return items.filter((p) => p.category === tab);
 }

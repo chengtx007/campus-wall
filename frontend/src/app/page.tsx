@@ -21,7 +21,8 @@ export default async function HomePage({ searchParams }: PageProps) {
   let loadError: string | null = null;
 
   try {
-    const data = await fetchPostList(0, 20);
+    const sort = tab === "hot" ? "hot" : "latest";
+    const data = await fetchPostList(0, 20, sort);
     items = data.items;
     total = data.total;
   } catch (e) {
@@ -40,7 +41,7 @@ export default async function HomePage({ searchParams }: PageProps) {
         </h1>
         <p className={styles.heroDesc}>
           {tab === "hot"
-            ? "热门区暂按发布时间排序；接入点赞或浏览量后可改为热度排序。"
+            ? "按点赞数排序，最受欢迎的帖子优先展示。"
             : "黑白简约布局，分区与发帖分类一致。在「globals.css」里可整体换色与对比度。"}
         </p>
       </section>

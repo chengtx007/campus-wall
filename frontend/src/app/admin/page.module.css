@@ -1,0 +1,62 @@
+.main {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1rem, 3vw, 1.5rem) 3rem;
+}
+
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.title { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--fg); }
+
+.logout {
+  padding: 0.35rem 0.9rem; font-size: 0.78rem; font-weight: 600; color: var(--muted);
+  background: transparent; border: 1px solid var(--border); border-radius: var(--radius-pill);
+  cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease;
+}
+.logout:hover { color: var(--fg); border-color: var(--border-strong); }
+
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+
+.tab {
+  padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  background: none; border: none; border-bottom: 2px solid transparent;
+  cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease;
+}
+.tab:hover { color: var(--fg); }
+.tabActive { color: var(--fg); border-bottom-color: var(--fg); }
+
+.filterRow { margin-bottom: 1rem; }
+
+.select {
+  padding: 0.35rem 0.55rem; font: inherit; font-size: 0.78rem; color: var(--fg);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;
+}
+.select:focus { outline: none; border-color: var(--border-strong); }
+
+.tableWrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+
+.table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.table th, .table td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table th { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--bg-elevated); white-space: nowrap; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: var(--bg-elevated); }
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+.muted { color: var(--muted); font-size: 0.78rem; }
+
+.postLink { color: var(--fg); text-decoration: none; font-weight: 500; }
+.postLink:hover { text-decoration: underline; }
+
+.statusTag { display: inline-block; padding: 0.15rem 0.45rem; border-radius: var(--radius-pill); font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
+.statusApproved { color: var(--fg); background: var(--muted-bg); }
+.statusPending { color: var(--fg-soft); background: color-mix(in srgb, var(--muted-bg) 80%, yellow 20%); }
+.statusRejected { color: var(--muted); background: var(--muted-bg); }
+
+.actionBtns { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.btnApprove, .btnReject, .btnDelete { padding: 0.25rem 0.55rem; font-size: 0.7rem; font-weight: 600; border-radius: var(--radius-pill); cursor: pointer; transition: opacity 0.15s ease; white-space: nowrap; }
+.btnApprove { color: var(--surface); background: var(--fg); border: 1px solid var(--fg); }
+.btnReject { color: var(--fg); background: var(--surface); border: 1px solid var(--border); }
+.btnDelete { color: var(--muted); background: transparent; border: 1px solid var(--border); }
+.btnApprove:hover, .btnReject:hover, .btnDelete:hover { opacity: 0.8; }
+
+.loading, .errorMsg, .empty { padding: 2rem; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.errorMsg { color: var(--fg); }

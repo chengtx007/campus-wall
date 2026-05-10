@@ -6,6 +6,8 @@ import type { Post } from "@/lib/posts";
 import { fetchPostList, formatRelativeTime } from "@/lib/posts";
 import { categoryLabel, filterPostsByTab, type NavTabSlug } from "@/lib/categories";
 import { useSearch } from "@/lib/search-context";
+import { getFingerprint } from "@/lib/fingerprint";
+import { LikeButton } from "./LikeButton";
 import { PostListSkeleton } from "./PostListSkeleton";
 import styles from "./PostList.module.css";
 
@@ -26,6 +28,22 @@ type Props = {
   tab: NavTabSlug;
 };
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s/g, "")
+    .replace(/(\*{1,3}|_{1,3}|~{2})(.*?)\1/g, "$2")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "[图片]")
+    .replace(/^[-*+]\s/gm, "")
+    .replace(/^\d+\.\s/gm, "")
+    .replace(/^>\s/gm, "")
+    .replace(/[-*_~]/g, "")
+    .replace(/\n{2,}/g, " ")
+    .replace(/\n/g, " ")
+    .substring(0, 200);
+}
+
 function searchPosts(items: Post[], query: string): Post[] {
   if (!query.trim()) return items;
   const q = query.toLowerCase();
@@ -40,6 +58,7 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadingRef = useRef(false);
+  const fp = useRef(getFingerprint());
   const { query } = useSearch();
 
   const tabFiltered = useMemo(() => filterPostsByTab(allItems, tab), [allItems, tab]);
@@ -51,7 +70,8 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchPostList(allItems.length, PAGE_SIZE);
+      const sort = tab === "hot" ? "hot" : "latest";
+      const data = await fetchPostList(allItems.length, PAGE_SIZE, sort, fp.current);
       setAllItems((prev) => [...prev, ...data.items]);
       setTotal(data.total);
     } catch (e) {
@@ -60,7 +80,7 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [allItems.length]);
+  }, [allItems.length, tab]);
 
   useEffect(() => {
     setAllItems(initialItems);
@@ -79,16 +99,31 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
     <>
       <ul className={styles.list}>
         {visible.map((p) => (
-          <li key={p.id}>
+          <li key={p.id} className={styles.listItem}>
             <Link href={`/post/${p.id}`} className={styles.card}>
               <div className={styles.cardHead}>
                 <span>#{p.id}</span>
                 <span className={styles.badge}>{categoryLabel(p.category)}</span>
                 <time dateTime={p.created_at}>{formatRelativeTime(p.created_at)}</time>
+                <span className={styles.stat}>{p.view_count} 次浏览</span>
+                <span className={styles.stat}>{p.like_count} 赞</span>
               </div>
               <h3 className={styles.cardTitle}>{p.title}</h3>
-              <p className={styles.cardBody}>{p.body}</p>
+              <p className={styles.cardBody}>{stripMarkdown(p.body)}</p>
+              {p.image_urls.length > 0 && (
+                <div className={styles.cardThumbs}>
+                  {p.image_urls.slice(0, 3).map((url, i) => (
+                    <img key={i} src={url} alt={`图片 ${i + 1}`} className={styles.cardThumb} />
+                  ))}
+                  {p.image_urls.length > 3 && (
+                    <span className={styles.moreImages}>+{p.image_urls.length - 3}</span>
+                  )}
+                </div>
+              )}
             </Link>
+            <div className={styles.cardActions}>
+              <LikeButton postId={p.id} initialCount={p.like_count} initialLiked={p.is_liked} />
+            </div>
           </li>
         ))}
       </ul>

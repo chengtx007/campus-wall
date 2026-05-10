@@ -41,8 +41,11 @@ export function SiteHeader() {
           <Link className={styles.btnGhost} href="/login">
             登录
           </Link>
-          <Link className={styles.btnSolid} href="/register">
+          <Link className={styles.btnGhost} href="/register">
             注册
+          </Link>
+          <Link className={styles.btnGhost} href="/admin">
+            管理
           </Link>
         </div>
       </div>
