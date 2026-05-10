@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./PostForm.module.css";
 
 export function PostForm() {
@@ -9,6 +9,11 @@ export function PostForm() {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    return () => clearTimeout(timerRef.current);
+  }, []);
 
   return (
     <div className={styles.wrap}>
@@ -19,6 +24,7 @@ export function PostForm() {
           e.preventDefault();
           setMessage(null);
           setIsError(false);
+          clearTimeout(timerRef.current);
           const form = e.currentTarget;
           const fd = new FormData(form);
           const title = String(fd.get("title") ?? "").trim();
@@ -42,6 +48,8 @@ export function PostForm() {
             }
             form.reset();
             setMessage("已发布");
+            setIsError(false);
+            timerRef.current = setTimeout(() => setMessage(null), 3000);
             router.refresh();
           } catch (err) {
             setIsError(true);

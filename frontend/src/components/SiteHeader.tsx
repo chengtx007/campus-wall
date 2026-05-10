@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { NAV_TABS, parseTab } from "@/lib/categories";
+import { useSearch } from "@/lib/search-context";
+import { SearchInput } from "./SearchInput";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
   const searchParams = useSearchParams();
   const active = parseTab(searchParams.get("tab") ?? undefined);
+  const { query, setQuery } = useSearch();
 
   return (
     <header className={styles.bar}>
@@ -34,6 +37,7 @@ export function SiteHeader() {
         </nav>
 
         <div className={styles.actions}>
+          <SearchInput value={query} onChange={setQuery} />
           <Link className={styles.btnGhost} href="/login">
             登录
           </Link>

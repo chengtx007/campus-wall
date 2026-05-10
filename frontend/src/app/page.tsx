@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import { PostForm } from "@/components/PostForm";
-import { NAV_TABS, categoryLabel, filterPostsByTab, parseTab } from "@/lib/categories";
+import { PostList } from "@/components/PostList";
+import { PostListSkeleton } from "@/components/PostListSkeleton";
+import { NAV_TABS, filterPostsByTab, parseTab, type NavTabSlug } from "@/lib/categories";
 import { fetchPostList } from "@/lib/posts";
 import styles from "./page.module.css";
 
@@ -18,7 +21,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   let loadError: string | null = null;
 
   try {
-    const data = await fetchPostList();
+    const data = await fetchPostList(0, 20);
     items = data.items;
     total = data.total;
   } catch (e) {
@@ -49,33 +52,20 @@ export default async function HomePage({ searchParams }: PageProps) {
           <h2 className={styles.sectionTitle}>本区帖子</h2>
           {!loadError ? (
             <p className={styles.meta}>
-              全站 {total} 条 · 本页 {visible.length} 条
+              全站 {total} 条 · 本区 {visible.length} 条
             </p>
           ) : null}
         </div>
+
         {loadError ? (
           <p className={styles.alert} role="alert">
             {loadError}
           </p>
-        ) : null}
-        {!loadError && visible.length === 0 ? <p className={styles.empty}>该分区暂无帖子。</p> : null}
-        {!loadError && visible.length > 0 ? (
-          <ul className={styles.list}>
-            {visible.map((p) => (
-              <li key={p.id}>
-                <article className={styles.card}>
-                  <div className={styles.cardHead}>
-                    <span>#{p.id}</span>
-                    <span className={styles.badge}>{categoryLabel(p.category)}</span>
-                    <time dateTime={p.created_at}>{new Date(p.created_at).toLocaleString()}</time>
-                  </div>
-                  <h3 className={styles.cardTitle}>{p.title}</h3>
-                  <p className={styles.cardBody}>{p.body}</p>
-                </article>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        ) : (
+          <Suspense fallback={<PostListSkeleton count={5} />}>
+            <PostList initialItems={visible} initialTotal={total} tab={tab} />
+          </Suspense>
+        )}
       </div>
     </main>
   );

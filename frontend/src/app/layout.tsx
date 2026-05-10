@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { SearchProvider } from "@/lib/search-context";
 import { SiteHeader } from "@/components/SiteHeader";
 import layoutStyles from "./layout.module.css";
 import "./globals.css";
@@ -13,10 +14,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN">
       <body className="app-body">
-        <Suspense fallback={<div className={layoutStyles.skeleton} aria-hidden />}>
-          <SiteHeader />
-        </Suspense>
-        <div className="app-main">{children}</div>
+        <SearchProvider>
+          <Suspense fallback={<div className={layoutStyles.skeleton} aria-hidden />}>
+            <SiteHeader />
+          </Suspense>
+          <div className="app-main">{children}</div>
+        </SearchProvider>
       </body>
     </html>
   );
