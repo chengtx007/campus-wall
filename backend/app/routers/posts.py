@@ -1,11 +1,12 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.main import limiter
 from app.models.comment import Comment
 from app.models.like import Like
 from app.models.post import Post
@@ -50,6 +51,7 @@ def _post_to_read(post: Post, db: Session, fingerprint: str | None = None) -> Po
 
 @router.get("", response_model=PostList)
 def list_posts(
+    request: Request,
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -79,6 +81,7 @@ def list_posts(
 
 @router.get("/{post_id}", response_model=PostRead)
 def get_post(
+    request: Request,
     post_id: int,
     db: Session = Depends(get_db),
     fingerprint: str | None = Query(None),
@@ -90,7 +93,8 @@ def get_post(
 
 
 @router.post("", response_model=PostRead, status_code=201)
-def create_post(payload: PostCreate, db: Session = Depends(get_db)) -> PostRead:
+@limiter.limit("5/minute")
+def create_post(request: Request, payload: PostCreate, db: Session = Depends(get_db)) -> PostRead:
     post_status = "pending" if settings.require_approval else "approved"
     image_urls_str = json.dumps(payload.image_urls, ensure_ascii=False) if payload.image_urls else None
     post = Post(
@@ -107,7 +111,8 @@ def create_post(payload: PostCreate, db: Session = Depends(get_db)) -> PostRead:
 
 
 @router.post("/{post_id}/view")
-def increment_view(post_id: int, db: Session = Depends(get_db)) -> dict:
+@limiter.limit("60/minute")
+def increment_view(request: Request, post_id: int, db: Session = Depends(get_db)) -> dict:
     post = db.get(Post, post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
@@ -117,7 +122,8 @@ def increment_view(post_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/{post_id}/like", response_model=LikeToggleResponse)
-def toggle_like(post_id: int, payload: LikeCreate, db: Session = Depends(get_db)) -> LikeToggleResponse:
+@limiter.limit("30/minute")
+def toggle_like(request: Request, post_id: int, payload: LikeCreate, db: Session = Depends(get_db)) -> LikeToggleResponse:
     post = db.get(Post, post_id)
     if post is None or post.status == "rejected":
         raise HTTPException(status_code=404, detail="帖子不存在")
@@ -137,7 +143,11 @@ def toggle_like(post_id: int, payload: LikeCreate, db: Session = Depends(get_db)
 
 
 @router.get("/{post_id}/comments", response_model=list[CommentRead])
-def list_comments(post_id: int, db: Session = Depends(get_db)) -> list[CommentRead]:
+def list_comments(
+    request: Request,
+    post_id: int,
+    db: Session = Depends(get_db),
+) -> list[CommentRead]:
     post = db.get(Post, post_id)
     if post is None or post.status == "rejected":
         raise HTTPException(status_code=404, detail="帖子不存在")
@@ -148,7 +158,8 @@ def list_comments(post_id: int, db: Session = Depends(get_db)) -> list[CommentRe
 
 
 @router.post("/{post_id}/comments", response_model=CommentRead, status_code=201)
-def create_comment(post_id: int, payload: CommentCreate, db: Session = Depends(get_db)) -> CommentRead:
+@limiter.limit("10/minute")
+def create_comment(request: Request, post_id: int, payload: CommentCreate, db: Session = Depends(get_db)) -> CommentRead:
     post = db.get(Post, post_id)
     if post is None or post.status == "rejected":
         raise HTTPException(status_code=404, detail="帖子不存在")
@@ -160,7 +171,8 @@ def create_comment(post_id: int, payload: CommentCreate, db: Session = Depends(g
 
 
 @router.post("/{post_id}/report", status_code=201)
-def create_report(post_id: int, payload: ReportCreate, db: Session = Depends(get_db)) -> dict:
+@limiter.limit("5/minute")
+def create_report(request: Request, post_id: int, payload: ReportCreate, db: Session = Depends(get_db)) -> dict:
     post = db.get(Post, post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")

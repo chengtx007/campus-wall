@@ -1,12 +1,13 @@
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.main import limiter
 from app.models.like import Like
 from app.models.post import Post
 from app.models.report import Report
@@ -28,7 +29,8 @@ def verify_admin(authorization: str = Header(None)) -> None:
 
 
 @router.post("/login")
-def admin_login(authorization: str = Header(None)) -> dict:
+@limiter.limit("10/minute")
+def admin_login(request: Request, authorization: str = Header(None)) -> dict:
     if not settings.admin_token:
         raise HTTPException(403, "管理员功能未启用")
     if not authorization:
