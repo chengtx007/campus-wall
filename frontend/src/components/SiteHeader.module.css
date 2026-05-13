@@ -158,6 +158,15 @@
   background: var(--surface-2);
 }
 
+.userTag {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-md);
+  background: var(--muted-bg);
+}
+
 .btnSolid {
   color: var(--surface);
   background: var(--fg);

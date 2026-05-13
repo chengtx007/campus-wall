@@ -1,3 +1,8 @@
+export type AuthorInfo = {
+  username: string;
+  nickname: string;
+};
+
 export type Post = {
   id: number;
   title: string;
@@ -9,6 +14,7 @@ export type Post = {
   like_count: number;
   is_liked: boolean;
   status: string;
+  author: AuthorInfo | null;
 };
 
 export type PostListResponse = {
@@ -22,6 +28,7 @@ export type Comment = {
   body: string;
   fingerprint: string;
   created_at: string;
+  author: AuthorInfo | null;
 };
 
 export type Report = {

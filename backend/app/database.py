@@ -16,20 +16,37 @@ class Base(DeclarativeBase):
     pass
 
 
-def run_migration(engine):
+def _add_column_if_missing(conn, table: str, col: str, col_def: str):
+    """Add a column to an existing table if it doesn't already exist."""
     import sqlalchemy as sa
 
     inspector = sa.inspect(engine)
-    if not inspector.has_table("posts"):
+    if not inspector.has_table(table):
         return
-    columns = {c["name"] for c in inspector.get_columns("posts")}
+    existing = {c["name"] for c in inspector.get_columns(table)}
+    if col not in existing:
+        conn.execute(sa.text(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}"))
+
+
+def run_migration(engine):
+    import sqlalchemy as sa
+
     with engine.connect() as conn:
-        if "image_urls" not in columns:
-            conn.execute(sa.text("ALTER TABLE posts ADD COLUMN image_urls TEXT"))
-        if "view_count" not in columns:
-            conn.execute(sa.text("ALTER TABLE posts ADD COLUMN view_count INTEGER DEFAULT 0"))
-        if "status" not in columns:
-            conn.execute(sa.text("ALTER TABLE posts ADD COLUMN status VARCHAR(20) DEFAULT 'approved'"))
+        # posts table
+        _add_column_if_missing(conn, "posts", "image_urls", "TEXT")
+        _add_column_if_missing(conn, "posts", "view_count", "INTEGER DEFAULT 0")
+        _add_column_if_missing(conn, "posts", "status", "VARCHAR(20) DEFAULT 'approved'")
+        _add_column_if_missing(conn, "posts", "user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL")
+
+        # comments
+        _add_column_if_missing(conn, "comments", "user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL")
+
+        # likes
+        _add_column_if_missing(conn, "likes", "user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL")
+
+        # reports
+        _add_column_if_missing(conn, "reports", "user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL")
+
         conn.commit()
 
 
