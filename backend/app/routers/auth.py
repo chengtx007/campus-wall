@@ -1,14 +1,42 @@
+import hashlib
+import hmac
+import time
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, decode_access_token, hash_password, verify_password
+from app.config import settings
 from app.database import get_db
 from app.main import limiter
 from app.models.user import User
-from app.schemas.auth import TokenResponse, UserLogin, UserRegister, UserResponse
+from app.schemas.auth import GateVerify, TokenResponse, UserLogin, UserRegister, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _invite_code() -> str:
+    """当前10分钟窗口的邀请码（8位十六进制）"""
+    window = int(time.time()) // 600
+    return hmac.new(
+        settings.invite_secret.encode(),
+        str(window).encode(),
+        hashlib.sha256,
+    ).hexdigest()[:8]
+
+
+def _verify_invite(code: str) -> bool:
+    """验证邀请码，允许当前窗口和上一个窗口"""
+    if not settings.invite_secret:
+        return True  # 未配置则跳过验证
+    expected = _invite_code()
+    prev = hmac.new(
+        settings.invite_secret.encode(),
+        str(int(time.time()) // 600 - 1).encode(),
+        hashlib.sha256,
+    ).hexdigest()[:8]
+    return code.strip() == expected or code.strip() == prev
 
 
 def get_current_user(
@@ -27,18 +55,37 @@ def get_current_user(
     return user
 
 
+@router.post("/gate")
+def gate_verify(payload: GateVerify) -> dict:
+    if payload.answer.strip() == settings.gate_answer:
+        return {"ok": True}
+    raise HTTPException(403, "答案错误")
+
+
+@router.get("/invite")
+def get_invite_code() -> dict:
+    """获取当前邀请码（10分钟有效）"""
+    if not settings.invite_secret:
+        raise HTTPException(404, "邀请码功能未启用")
+    return {"code": _invite_code(), "expires_in": 600 - (int(time.time()) % 600)}
+
+
 @router.post("/register", response_model=TokenResponse, status_code=201)
 @limiter.limit("3/minute")
 def register(request: Request, payload: UserRegister, db: Session = Depends(get_db)) -> TokenResponse:
-    # Check username uniqueness
+    # Invite code check
+    if settings.invite_secret:
+        if not payload.invite_code:
+            raise HTTPException(403, "需要邀请码才能注册")
+        if not _verify_invite(payload.invite_code):
+            raise HTTPException(403, "邀请码无效或已过期（10分钟刷新一次）")
+
     if db.scalar(select(User).where(User.username == payload.username)):
         raise HTTPException(409, "用户名已被注册")
 
-    # Check phone uniqueness if provided
     if payload.phone and db.scalar(select(User).where(User.phone == payload.phone)):
         raise HTTPException(409, "手机号已被注册")
 
-    # Check email uniqueness if provided
     if payload.email and db.scalar(select(User).where(User.email == payload.email)):
         raise HTTPException(409, "邮箱已被注册")
 
@@ -60,7 +107,6 @@ def register(request: Request, payload: UserRegister, db: Session = Depends(get_
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
 def login(request: Request, payload: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
-    # Find user by username, phone, or email
     user = db.scalar(
         select(User).where(
             or_(User.username == payload.account, User.phone == payload.account, User.email == payload.account)

@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -35,6 +36,7 @@ export default function RegisterPage() {
         password,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
+        invite_code: inviteCode.trim() || undefined,
       });
       router.push("/");
     } catch (err: unknown) {
@@ -114,6 +116,18 @@ export default function RegisterPage() {
               required
               minLength={6}
               maxLength={128}
+            />
+          </label>
+
+          <label className={styles.label}>
+            邀请码
+            <input
+              className={styles.input}
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="10分钟刷新一次，问群主获取"
+              maxLength={16}
             />
           </label>
 

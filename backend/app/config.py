@@ -9,9 +9,12 @@ class Settings(BaseSettings):
     admin_token: str = ""
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24  # 24 hours
+    jwt_expire_minutes: int = 60 * 24
     upload_dir: str = "./uploads"
     require_approval: bool = False
+    gate_question: str = "学校中餐套餐多少钱一份？"
+    gate_answer: str = "13"
+    invite_secret: str = ""
 
 
 settings = Settings()

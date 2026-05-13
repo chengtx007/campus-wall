@@ -4,11 +4,12 @@ from pydantic import BaseModel, EmailStr, model_validator
 
 
 class UserRegister(BaseModel):
-    username: str  # unique
+    username: str
     nickname: str
     password: str
     phone: str | None = None
     email: EmailStr | None = None
+    invite_code: str | None = None
 
     @model_validator(mode="after")
     def check_contact(self):
@@ -18,7 +19,7 @@ class UserRegister(BaseModel):
 
 
 class UserLogin(BaseModel):
-    account: str  # username or phone or email
+    account: str
     password: str
 
 
@@ -29,6 +30,7 @@ class UserResponse(BaseModel):
     phone: str | None = None
     email: str | None = None
     created_at: datetime
+    is_banned: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -37,3 +39,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class GateVerify(BaseModel):
+    answer: str
