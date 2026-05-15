@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { PostForm } from "@/components/PostForm";
+import { PostFormToggle } from "@/components/PostFormToggle";
 import { PostList } from "@/components/PostList";
 import { PostListSkeleton } from "@/components/PostListSkeleton";
 import { NAV_TABS, filterPostsByTab, parseTab, type NavTabSlug } from "@/lib/categories";
@@ -46,7 +46,7 @@ export default async function HomePage({ searchParams }: PageProps) {
         </p>
       </section>
 
-      <PostForm />
+      <PostFormToggle />
 
       <div className={styles.inner}>
         <div className={styles.sectionHead}>

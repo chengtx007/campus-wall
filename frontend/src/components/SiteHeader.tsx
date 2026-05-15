@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NAV_TABS, parseTab } from "@/lib/categories";
 import { useAuth } from "@/lib/auth-context";
+import { togglePostForm } from "@/lib/post-form-toggle";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
@@ -46,6 +47,9 @@ export function SiteHeader() {
             <>
               {user ? (
                 <>
+                  <button className={styles.btnGhost} onClick={togglePostForm}>
+                    +发帖
+                  </button>
                   <span className={styles.userTag}>{user.nickname}</span>
                   <button className={styles.btnGhost} onClick={handleLogout}>
                     退出
