@@ -41,14 +41,11 @@ export function PostForm() {
 
   const handleFileChange = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setSelectedFiles((prev) => {
-      const merged = [...prev, ...Array.from(files)].slice(0, 9);
-      return merged;
-    });
+    const newFiles = Array.from(files);
+    setSelectedFiles((prev) => [...prev, ...newFiles].slice(0, 9));
     setPreviews((prev) => {
-      const newPreviews = Array.from(files).map((f) => URL.createObjectURL(f));
-      const merged = [...prev, ...newPreviews].slice(0, 9);
-      return merged;
+      const newPreviews = newFiles.map((f) => URL.createObjectURL(f));
+      return [...prev, ...newPreviews].slice(0, 9);
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
