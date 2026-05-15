@@ -5,15 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from app.config import settings
+from app.config import settings, limiter
 from app.database import Base, engine, run_migration
 from app.routers import posts, uploads, admin, auth
 
-limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager

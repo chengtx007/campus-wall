@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from app.config import settings
-from app.main import limiter
+from app.config import limiter
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 

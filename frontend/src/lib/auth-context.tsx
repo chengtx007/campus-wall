@@ -28,6 +28,7 @@ type AuthState = {
     password: string;
     phone?: string;
     email?: string;
+      invite_code?: string;
   }) => Promise<void>;
   logout: () => void;
 };
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string;
       phone?: string;
       email?: string;
+      invite_code?: string;
     }) => {
       const data = await apiRegister(params);
       setUser(data.user);

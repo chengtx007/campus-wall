@@ -50,6 +50,7 @@ export async function register(params: {
   password: string;
   phone?: string;
   email?: string;
+  invite_code?: string;
 }): Promise<TokenResponse> {
   const res = await fetch(`${getBackendBaseUrl()}/api/auth/register`, {
     method: "POST",

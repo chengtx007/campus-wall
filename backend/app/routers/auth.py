@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, decode_access_token, hash_password, verify_password
 from app.config import settings
 from app.database import get_db
-from app.main import limiter
+from app.config import limiter
 from app.models.user import User
 from app.schemas.auth import GateVerify, TokenResponse, UserLogin, UserRegister, UserResponse
 

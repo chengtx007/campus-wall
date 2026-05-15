@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.main import limiter
+from app.config import limiter
 from app.models.like import Like
 from app.models.post import Post
 from app.models.report import Report
