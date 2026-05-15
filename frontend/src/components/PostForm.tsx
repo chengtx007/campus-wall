@@ -26,13 +26,18 @@ export function PostForm() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fsTextareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
 
   useEffect(() => {
     return () => {
       clearTimeout(timerRef.current);
-      previews.forEach((url) => URL.revokeObjectURL(url));
+      previewsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [previews]);
+  }, []);
 
   const handleFileChange = (files: FileList | null) => {
     if (!files || files.length === 0) return;
