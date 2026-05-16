@@ -1,29 +1,43 @@
-# 校园墙
+# DS 校园墙
 
-校园墙：**FastAPI 后端** + **Next.js（App Router）前端**（SQLite 开发库）。首页帖子列表为 **服务端拉取**（SSR 数据），发帖表单为 **Client Component**；默认几乎无样式，方便你自行设计 UI。
+一个开源的校园社区平台，支持发帖、评论、点赞、通知等完整功能。
+
+- **后端**：FastAPI + SQLAlchemy + SQLite
+- **前端**：Next.js 15 (App Router)
+
+## 功能
+
+- 帖子：分类浏览（灌水/学习/公告/工单）、全文搜索、Markdown 正文、图片上传
+- 互动：评论（支持嵌套回复）、评论点赞、帖子点赞
+- 用户：注册/登录（JWT）、个人主页、管理员分级（超级管理员/普通管理员）
+- 通知：点赞、评论、回复、评论点赞
+- 安全：速率限制、bcrypt 密码哈希、文件上传白名单
+- 其他：入站网关、邀请码验证、工单状态流转、内容审核
 
 ## 环境要求
 
-- Python 3.11+（当前开发环境为 3.14 亦可）
-- Node.js 18+ 与 npm（用于前端）
+- Python 3.11+
+- Node.js 18+
 
-## 后端本地运行
+## 本地运行
+
+### 后端
 
 ```bash
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/.venv
 pip install -r requirements.txt
-cp .env.example .env        # 按需编辑 .env
+cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- 健康检查：<http://127.0.0.1:8000/health>
-- 交互式 API 文档：<http://127.0.0.1:8000/docs>
+- 健康检查：http://127.0.0.1:8000/health
+- API 文档：http://127.0.0.1:8000/docs
 
-## 前端本地运行（Next.js）
+### 前端
 
-需**另开一个终端**，保持后端在 **8000** 端口运行。
+需另开终端，保持后端在 8000 端口运行：
 
 ```bash
 cd frontend
@@ -31,11 +45,9 @@ npm install
 npm run dev
 ```
 
-浏览器打开 <http://127.0.0.1:3000>。  
-- 服务端请求直连 `BACKEND_URL`（默认 `http://127.0.0.1:8000`），见 `frontend/.env.example`。  
-- 浏览器里对 **`/api/*`** 的请求由 Next **rewrites** 转发到同一 FastAPI，避免在客户端写死后端地址。
+浏览器打开 http://127.0.0.1:3000。
 
-生产部署时把 `BACKEND_URL` 设为内网或公网可访问的 FastAPI 根地址（**不要**把只能在笔记本上访问的 `127.0.0.1` 配到线上）。
+### 生产构建
 
 ```bash
 cd frontend
@@ -45,17 +57,51 @@ npm run start
 
 ## 环境变量
 
-- 后端：`backend/.env.example`  
-- 前端：`frontend/.env.example`（主要是 `BACKEND_URL`）
+- 后端：`backend/.env`（参考 `backend/.env.example`）
+- 前端：`frontend/.env.local`（主要是 `BACKEND_URL`，指向后端地址）
 
-不要将真实的 `backend/.env`、`frontend/.env.local` 或密钥文件提交到仓库（已在 `.gitignore` 中忽略）。
+## API 概要
 
-## 接口概要
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/posts` | 帖子列表（支持分类、搜索、排序、分页） |
+| POST | `/api/posts` | 发帖 |
+| GET | `/api/posts/{id}` | 帖子详情 |
+| POST | `/api/posts/{id}/like` | 点赞帖子 |
+| POST | `/api/posts/{id}/view` | 浏览计数 |
+| GET | `/api/posts/{id}/comments` | 评论列表（嵌套树） |
+| POST | `/api/posts/{id}/comments` | 发表评论（支持 parent_id 回复） |
+| POST | `/api/posts/{id}/comments/{cid}/like` | 点赞评论 |
+| POST | `/api/posts/{id}/report` | 举报帖子 |
+| POST | `/api/auth/register` | 注册 |
+| POST | `/api/auth/login` | 登录 |
+| GET | `/api/notifications` | 通知列表 |
+| POST | `/api/uploads` | 上传图片 |
 
-- `GET /api/posts`：分页列表
-- `POST /api/posts`：发帖
-- `GET /api/posts/{id}`：单帖详情
+完整接口文档见 `/docs`。
+
+## 项目结构
+
+```
+backend/
+├── app/
+│   ├── main.py          # FastAPI 入口
+│   ├── config.py        # 配置 & 速率限制
+│   ├── database.py      # 数据库 & 迁移
+│   ├── auth.py          # JWT & bcrypt
+│   ├── models/          # ORM 模型
+│   ├── schemas/         # Pydantic 校验
+│   └── routers/         # API 路由
+└── uploads/             # 上传文件目录
+
+frontend/
+├── src/
+│   ├── app/             # Next.js App Router 页面
+│   ├── components/      # React 组件
+│   └── lib/             # 工具函数 & API 调用
+└── next.config.ts       # 代理配置
+```
 
 ## 许可证
 
-未指定；可按需补充 `LICENSE`。
+MIT
