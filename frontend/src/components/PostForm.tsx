@@ -77,16 +77,29 @@ export function PostForm() {
     setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Auto-sync fullscreen textarea to bodyText every 1s
+  useEffect(() => {
+    if (!fullscreen) return;
+    const interval = setInterval(() => {
+      if (fsTextareaRef.current) {
+        setBodyText(fsTextareaRef.current.value);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [fullscreen]);
+
   const openFullscreen = useCallback(() => {
     setFullscreen(true);
     setTimeout(() => fsTextareaRef.current?.focus(), 100);
   }, []);
 
   const closeFullscreen = useCallback(() => {
-    setBodyText(fsTextareaRef.current?.value ?? bodyText);
+    if (fsTextareaRef.current) {
+      setBodyText(fsTextareaRef.current.value);
+    }
     setFullscreen(false);
     setTimeout(() => textareaRef.current?.focus(), 100);
-  }, [bodyText]);
+  }, []);
 
   const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setBodyText(e.target.value);
