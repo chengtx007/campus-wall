@@ -52,6 +52,13 @@
   border: 1px solid var(--border);
 }
 
+.authorBy {
+  font-size: 0.72rem;
+  color: var(--fg-soft);
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
 .ticketBadge {
   color: var(--bg);
   background: var(--fg);

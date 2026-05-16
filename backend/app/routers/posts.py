@@ -11,6 +11,7 @@ from app.config import limiter
 from app.models.comment import Comment
 from app.models.like import Like
 from app.models.post import Post
+from app.models.notification import Notification
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentRead
@@ -199,6 +200,14 @@ def toggle_like(
             fingerprint=payload.fingerprint,
             user_id=current_user.id if current_user else None,
         ))
+        # Notify post author
+        if current_user and post.user_id and post.user_id != current_user.id:
+            db.add(Notification(
+                user_id=post.user_id,
+                type="like",
+                post_id=post_id,
+                from_user_id=current_user.id,
+            ))
         db.commit()
         liked = True
     count = db.scalar(select(func.count()).select_from(Like).where(Like.post_id == post_id)) or 0
@@ -253,6 +262,14 @@ def create_comment(
         user_id=current_user.id if current_user else None,
     )
     db.add(comment)
+    # Notify post author
+    if current_user and post.user_id and post.user_id != current_user.id:
+        db.add(Notification(
+            user_id=post.user_id,
+            type="comment",
+            post_id=post_id,
+            from_user_id=current_user.id,
+        ))
     db.commit()
     db.refresh(comment)
     result = CommentRead.model_validate(comment)

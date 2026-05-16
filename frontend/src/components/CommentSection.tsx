@@ -85,7 +85,7 @@ export function CommentSection({ postId }: Props) {
           {comments.map((c) => (
             <li key={c.id} className={styles.item}>
               <div className={styles.commentHead}>
-                <span className={styles.author}>匿名用户</span>
+                <span className={styles.author}>{c.author ? (c.author.nickname || c.author.username) : "匿名用户"}</span>
                 <time dateTime={c.created_at} className={styles.time}>
                   {formatRelativeTime(c.created_at)}
                 </time>

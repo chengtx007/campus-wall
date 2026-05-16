@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { NAV_TABS, parseTab } from "@/lib/categories";
 import { useAuth } from "@/lib/auth-context";
 import { togglePostForm } from "@/lib/post-form-toggle";
+import { NotificationBell } from "./NotificationBell";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
@@ -50,6 +51,7 @@ export function SiteHeader() {
                   <button className={styles.btnGhost} onClick={togglePostForm}>
                     +发帖
                   </button>
+                  <NotificationBell />
                   <span className={styles.userTag}>{user.nickname}</span>
                   <button className={styles.btnGhost} onClick={handleLogout}>
                     退出

@@ -1,0 +1,144 @@
+.wrap {
+  position: relative;
+}
+
+.bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.bell:hover {
+  color: var(--fg);
+  background: var(--muted-bg);
+}
+
+.badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-align: center;
+  color: var(--surface);
+  background: var(--fg);
+  border-radius: 999px;
+}
+
+.dropdown {
+  position: absolute;
+  right: -0.5rem;
+  top: calc(100% + 0.5rem);
+  width: 20rem;
+  max-height: 24rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dropHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+}
+
+.readAll {
+  padding: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.readAll:hover {
+  color: var(--fg);
+}
+
+.list {
+  overflow-y: auto;
+  max-height: 20rem;
+}
+
+.empty {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  text-decoration: none;
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s ease;
+}
+
+.item:hover {
+  background: var(--bg-elevated);
+}
+
+.unread {
+  background: color-mix(in srgb, var(--muted-bg) 60%, transparent);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-top: 0.4rem;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.unread .dot {
+  background: var(--fg);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.text {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.time {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}

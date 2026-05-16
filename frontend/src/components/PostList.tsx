@@ -120,6 +120,7 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
               <div className={styles.cardHead}>
                 <span>#{p.id}</span>
                 <span className={styles.badge}>{categoryLabel(p.category)}</span>
+                {p.author && <span className={styles.author}>{p.author.nickname || p.author.username}</span>}
                 <time dateTime={p.created_at}>{formatRelativeTime(p.created_at)}</time>
                 <span className={styles.stat}>{p.view_count} 次浏览</span>
                 <span className={styles.stat}>{p.like_count} 赞</span>

@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import settings, limiter
 from app.database import Base, engine, run_migration
-from app.routers import posts, uploads, admin, auth
+from app.routers import posts, uploads, admin, auth, notifications
 
 
 
@@ -44,6 +44,7 @@ app.include_router(posts.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/api/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

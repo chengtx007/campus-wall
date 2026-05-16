@@ -280,6 +280,51 @@ export async function adminResolveReport(reportId: number, resolved: boolean): P
   if (!res.ok) throw new Error("操作失败");
 }
 
+export type Notification = {
+  id: number;
+  type: string;
+  post_id: number;
+  from_username: string | null;
+  from_nickname: string | null;
+  is_read: boolean;
+  created_at: string;
+};
+
+export async function fetchNotifications(token: string): Promise<Notification[]> {
+  const res = await fetch(`${getBackendBaseUrl()}/api/notifications`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function fetchUnreadCount(token: string): Promise<number> {
+  try {
+    const res = await fetch(`${getBackendBaseUrl()}/api/notifications/unread-count`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.count ?? 0;
+  } catch { return 0; }
+}
+
+export async function markNotificationRead(id: number, token: string): Promise<void> {
+  await fetch(`${getBackendBaseUrl()}/api/notifications/${id}/read`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  await fetch(`${getBackendBaseUrl()}/api/notifications/read-all`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 const MINUTE = 60;
 const HOUR = 3600;
 const DAY = 86400;
