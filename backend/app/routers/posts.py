@@ -47,7 +47,16 @@ def _is_admin(authorization: str | None, db: Session) -> bool:
     token = authorization.removeprefix("Bearer ").strip()
     if settings.admin_token and token == settings.admin_token:
         return True
-    return bool(db.scalar(select(User).where(User.fingerprint == token, User.role == "admin")))
+    # Check fingerprint-based admin
+    if db.scalar(select(User).where(User.fingerprint == token, User.role == "admin")):
+        return True
+    # Check JWT-based admin
+    user_id = decode_access_token(token)
+    if user_id:
+        user = db.get(User, user_id)
+        if user and user.role == "admin":
+            return True
+    return False
 
 
 def _parse_image_urls(post: Post) -> list[str]:

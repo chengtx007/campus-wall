@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.auth import decode_access_token
 from app.config import settings
 from app.database import get_db
 from app.config import limiter
@@ -39,9 +40,13 @@ def _is_super_admin(token: str) -> bool:
 
 
 def _is_admin_user(token: str, db: Session) -> bool:
-    return bool(
-        db.scalar(select(User).where(User.fingerprint == token, User.role == "admin"))
-    )
+    if db.scalar(select(User).where(User.fingerprint == token, User.role == "admin")):
+        return True
+    user_id = decode_access_token(token)
+    if user_id:
+        user = db.get(User, user_id)
+        return user is not None and user.role == "admin"
+    return False
 
 
 def verify_super_admin(authorization: str = Header(None)) -> None:
