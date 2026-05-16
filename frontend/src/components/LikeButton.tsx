@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toggleLike } from "@/lib/posts";
+import { toggleLike, toggleCommentLike } from "@/lib/posts";
 import { getFingerprint } from "@/lib/fingerprint";
 import styles from "./LikeButton.module.css";
 
 type Props = {
   postId: number;
+  commentId?: number;
   initialCount: number;
   initialLiked: boolean;
 };
 
-export function LikeButton({ postId, initialCount, initialLiked }: Props) {
+export function LikeButton({ postId, commentId, initialCount, initialLiked }: Props) {
   const [liked, setLiked] = useState(initialLiked);
   const [count, setCount] = useState(initialCount);
   const [pending, setPending] = useState(false);
@@ -28,7 +29,9 @@ export function LikeButton({ postId, initialCount, initialLiked }: Props) {
     setLiked(!wasLiked);
     setCount((prev) => (wasLiked ? prev - 1 : prev + 1));
     try {
-      const res = await toggleLike(postId, getFingerprint());
+      const res = commentId
+        ? await toggleCommentLike(postId, commentId, getFingerprint())
+        : await toggleLike(postId, getFingerprint());
       setLiked(res.liked);
       setCount(res.like_count);
     } catch {
@@ -37,7 +40,7 @@ export function LikeButton({ postId, initialCount, initialLiked }: Props) {
     } finally {
       setPending(false);
     }
-  }, [postId, pending, liked]);
+  }, [postId, commentId, pending, liked]);
 
   return (
     <button

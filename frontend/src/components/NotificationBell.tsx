@@ -16,6 +16,8 @@ import styles from "./NotificationBell.module.css";
 const TYPE_LABELS: Record<string, string> = {
   like: "赞了你的帖子",
   comment: "评论了你的帖子",
+  reply: "回复了你的评论",
+  comment_like: "赞了你的评论",
 };
 
 export function NotificationBell() {

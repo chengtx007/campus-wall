@@ -44,25 +44,18 @@ function stripMarkdown(text: string): string {
     .substring(0, 200);
 }
 
-function searchPosts(items: Post[], query: string): Post[] {
-  if (!query.trim()) return items;
-  const q = query.toLowerCase();
-  return items.filter(
-    (p) => p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q)
-  );
-}
-
 export function PostList({ initialItems, initialTotal, tab }: Props) {
   const [allItems, setAllItems] = useState<Post[]>(initialItems);
   const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
   const loadingRef = useRef(false);
   const fp = useRef(getFingerprint());
   const { query } = useSearch();
 
   const tabFiltered = useMemo(() => filterPostsByTab(allItems, tab), [allItems, tab]);
-  const visible = useMemo(() => searchPosts(tabFiltered, query), [tabFiltered, query]);
+  const visible = tabFiltered;
 
   const catParam = useMemo(() => (tab !== "all" && tab !== "hot") ? tab : "", [tab]);
 
@@ -73,7 +66,7 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
     setError(null);
     try {
       const sort = tab === "hot" ? "hot" : "latest";
-      const data = await fetchPostList(allItems.length, PAGE_SIZE, sort, fp.current, catParam);
+      const data = await fetchPostList(allItems.length, PAGE_SIZE, sort, fp.current, catParam, query);
       setAllItems((prev) => [...prev, ...data.items]);
       setTotal(data.total);
     } catch (e) {
@@ -82,14 +75,14 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [allItems.length, tab]);
+  }, [allItems.length, tab, catParam, query]);
 
   // Refresh with fingerprint on mount so likes persist across page loads
   useEffect(() => {
     const refresh = async () => {
       try {
         const sort = tab === "hot" ? "hot" : "latest";
-        const data = await fetchPostList(0, initialItems.length || PAGE_SIZE, sort, fp.current, catParam);
+        const data = await fetchPostList(0, initialItems.length || PAGE_SIZE, sort, fp.current, catParam, query);
         setAllItems(data.items);
         setTotal(data.total);
       } catch {
@@ -99,6 +92,29 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Server-side search: refetch when query changes
+  useEffect(() => {
+    let cancelled = false;
+    const doSearch = async () => {
+      setSearching(true);
+      setError(null);
+      try {
+        const sort = tab === "hot" ? "hot" : "latest";
+        const data = await fetchPostList(0, PAGE_SIZE, sort, fp.current, catParam, query);
+        if (cancelled) return;
+        setAllItems(data.items);
+        setTotal(data.total);
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "搜索失败");
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    };
+    doSearch();
+    return () => { cancelled = true; };
+  }, [query, tab, catParam]);
 
   useEffect(() => {
     setAllItems(initialItems);

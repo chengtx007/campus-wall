@@ -104,10 +104,15 @@ def list_posts(
     sort: str = Query("latest", pattern="^(latest|hot)$"),
     fingerprint: str | None = Query(None),
     category: str | None = Query(None),
+    search: str | None = Query(None),
 ) -> PostList:
     filters = [Post.status == "approved"]
     if category:
         filters.append(Post.category == category)
+    if search:
+        filters.append(
+            Post.title.ilike(f"%{search}%") | Post.body.ilike(f"%{search}%")
+        )
 
     base_query = select(Post).where(*filters)
     count_query = select(func.count()).select_from(Post).where(*filters)
@@ -206,11 +211,11 @@ def toggle_like(
 
     # Check by fingerprint first, then by user_id
     existing = db.scalar(
-        select(Like).where(Like.post_id == post_id, Like.fingerprint == payload.fingerprint)
+        select(Like).where(Like.post_id == post_id, Like.fingerprint == payload.fingerprint, Like.comment_id.is_(None))
     )
     if current_user and not existing:
         existing = db.scalar(
-            select(Like).where(Like.post_id == post_id, Like.user_id == current_user.id)
+            select(Like).where(Like.post_id == post_id, Like.user_id == current_user.id, Like.comment_id.is_(None))
         )
 
     if existing:
@@ -220,6 +225,7 @@ def toggle_like(
     else:
         db.add(Like(
             post_id=post_id,
+            comment_id=None,
             fingerprint=payload.fingerprint,
             user_id=current_user.id if current_user else None,
         ))
@@ -233,7 +239,54 @@ def toggle_like(
             ))
         db.commit()
         liked = True
-    count = db.scalar(select(func.count()).select_from(Like).where(Like.post_id == post_id)) or 0
+    count = db.scalar(select(func.count()).select_from(Like).where(Like.post_id == post_id, Like.comment_id.is_(None))) or 0
+    return LikeToggleResponse(liked=liked, like_count=int(count))
+
+
+@router.post("/{post_id}/comments/{comment_id}/like", response_model=LikeToggleResponse)
+@limiter.limit("30/minute")
+def toggle_comment_like(
+    request: Request,
+    post_id: int,
+    comment_id: int,
+    payload: LikeCreate,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(_get_optional_user),
+) -> LikeToggleResponse:
+    comment = db.get(Comment, comment_id)
+    if comment is None or comment.post_id != post_id:
+        raise HTTPException(status_code=404, detail="评论不存在")
+
+    existing = db.scalar(
+        select(Like).where(Like.comment_id == comment_id, Like.fingerprint == payload.fingerprint)
+    )
+    if current_user and not existing:
+        existing = db.scalar(
+            select(Like).where(Like.comment_id == comment_id, Like.user_id == current_user.id)
+        )
+
+    if existing:
+        db.delete(existing)
+        db.commit()
+        liked = False
+    else:
+        db.add(Like(
+            comment_id=comment_id,
+            post_id=None,
+            fingerprint=payload.fingerprint,
+            user_id=current_user.id if current_user else None,
+        ))
+        if current_user and comment.user_id and comment.user_id != current_user.id:
+            db.add(Notification(
+                user_id=comment.user_id,
+                type="comment_like",
+                post_id=post_id,
+                comment_id=comment_id,
+                from_user_id=current_user.id,
+            ))
+        db.commit()
+        liked = True
+    count = db.scalar(select(func.count()).select_from(Like).where(Like.comment_id == comment_id)) or 0
     return LikeToggleResponse(liked=liked, like_count=int(count))
 
 
@@ -242,6 +295,7 @@ def list_comments(
     request: Request,
     post_id: int,
     db: Session = Depends(get_db),
+    fingerprint: str | None = Query(None),
 ) -> list[CommentRead]:
     post = db.get(Post, post_id)
     if post is None or post.status == "rejected":
@@ -249,19 +303,60 @@ def list_comments(
     rows = db.scalars(
         select(Comment).where(Comment.post_id == post_id).order_by(Comment.created_at.asc())
     ).all()
-    result = []
+
+    # Prefetch users and like data for all comments
+    user_ids = [r.user_id for r in rows if r.user_id]
+    users = {}
+    if user_ids:
+        user_rows = db.scalars(select(User).where(User.id.in_(user_ids))).all()
+        users = {u.id: u for u in user_rows}
+
+    comment_ids = [r.id for r in rows]
+    like_counts = {}
+    user_liked: set[int] = set()
+    if comment_ids:
+        like_rows = db.scalars(
+            select(Like.comment_id, func.count().label("cnt"))
+            .where(Like.comment_id.in_(comment_ids))
+            .group_by(Like.comment_id)
+        ).all()
+        like_counts = {c.comment_id: c.cnt for c in like_rows}
+        if fingerprint:
+            liked_rows = db.scalars(
+                select(Like.comment_id).where(
+                    Like.comment_id.in_(comment_ids),
+                    Like.fingerprint == fingerprint,
+                )
+            ).all()
+            user_liked = set(liked_rows)
+
+    # Build dict of CommentRead dicts
+    comment_dicts: dict[int, dict] = {}
     for r in rows:
-        comment_dict = CommentRead.model_validate(r).model_dump()
-        if r.user_id:
-            user = db.get(User, r.user_id)
-            if user:
-                comment_dict["author"] = {"username": user.username, "nickname": user.nickname}
-            else:
-                comment_dict["author"] = None
-        else:
-            comment_dict["author"] = None
-        result.append(CommentRead(**comment_dict))
-    return result
+        d = {
+            "id": r.id,
+            "post_id": r.post_id,
+            "body": r.body,
+            "fingerprint": r.fingerprint,
+            "created_at": r.created_at,
+            "author": AuthorInfo(username=users[r.user_id].username, nickname=users[r.user_id].nickname).model_dump() if r.user_id in users else None,
+            "parent_id": r.parent_id,
+            "replies": [],
+            "like_count": int(like_counts.get(r.id, 0)),
+            "is_liked": r.id in user_liked,
+        }
+        comment_dicts[r.id] = d
+
+    # Group replies under parents
+    reply_map: dict[int | None, list[dict]] = {}
+    for r in rows:
+        reply_map.setdefault(r.parent_id, []).append(comment_dicts[r.id])
+
+    def build_tree(d: dict) -> CommentRead:
+        d["replies"] = [build_tree(c) for c in reply_map.get(d["id"], [])]
+        return CommentRead(**d)
+
+    return [build_tree(c) for c in reply_map.get(None, [])]
 
 
 @router.post("/{post_id}/comments", response_model=CommentRead, status_code=201)
@@ -278,21 +373,40 @@ def create_comment(
     post = db.get(Post, post_id)
     if post is None or post.status == "rejected":
         raise HTTPException(status_code=404, detail="帖子不存在")
+
+    # Validate parent comment if replying
+    if payload.parent_id is not None:
+        parent = db.get(Comment, payload.parent_id)
+        if parent is None or parent.post_id != post_id:
+            raise HTTPException(status_code=404, detail="父评论不存在或不属于该帖子")
+
     comment = Comment(
         post_id=post_id,
         body=payload.body,
         fingerprint=payload.fingerprint,
         user_id=current_user.id if current_user else None,
+        parent_id=payload.parent_id,
     )
     db.add(comment)
-    # Notify post author
-    if current_user and post.user_id and post.user_id != current_user.id:
+    # Notify post author (for top-level comments only)
+    if current_user and post.user_id and post.user_id != current_user.id and payload.parent_id is None:
         db.add(Notification(
             user_id=post.user_id,
             type="comment",
             post_id=post_id,
             from_user_id=current_user.id,
         ))
+    # Notify parent comment author (for replies)
+    if payload.parent_id is not None and current_user:
+        parent_comment = db.get(Comment, payload.parent_id)
+        if parent_comment and parent_comment.user_id and parent_comment.user_id != current_user.id:
+            db.add(Notification(
+                user_id=parent_comment.user_id,
+                type="reply",
+                post_id=post_id,
+                comment_id=parent_comment.id,
+                from_user_id=current_user.id,
+            ))
     db.commit()
     db.refresh(comment)
     result = CommentRead.model_validate(comment)

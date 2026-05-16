@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { NAV_TABS, parseTab } from "@/lib/categories";
 import { useAuth } from "@/lib/auth-context";
 import { togglePostForm } from "@/lib/post-form-toggle";
+import { useSearch } from "@/lib/search-context";
+import { SearchInput } from "./SearchInput";
 import { NotificationBell } from "./NotificationBell";
 import styles from "./SiteHeader.module.css";
 
@@ -12,6 +14,7 @@ export function SiteHeader() {
   const searchParams = useSearchParams();
   const active = parseTab(searchParams.get("tab") ?? undefined);
   const { user, loading, logout } = useAuth();
+  const { query, setQuery } = useSearch();
   const router = useRouter();
 
   const handleLogout = () => {
@@ -28,6 +31,8 @@ export function SiteHeader() {
             <span className={styles.brandTag}>DS Campus Wall</span>
           </span>
         </Link>
+
+        <SearchInput value={query} onChange={setQuery} />
 
         <nav className={styles.navWrap} aria-label="分区">
           <div className={styles.nav}>

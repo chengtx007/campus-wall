@@ -35,6 +35,10 @@ export type Comment = {
   fingerprint: string;
   created_at: string;
   author: AuthorInfo | null;
+  parent_id: number | null;
+  replies: Comment[];
+  like_count: number;
+  is_liked: boolean;
 };
 
 export type Report = {
@@ -60,11 +64,13 @@ export async function fetchPostList(
   limit = 20,
   sort = "latest",
   fingerprint = "",
-  category = ""
+  category = "",
+  search = ""
 ): Promise<PostListResponse> {
   const params = new URLSearchParams({ skip: String(skip), limit: String(limit), sort });
   if (fingerprint) params.set("fingerprint", fingerprint);
   if (category) params.set("category", category);
+  if (search) params.set("search", search);
   const url = `${getBackendBaseUrl()}/api/posts?${params}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
@@ -112,8 +118,26 @@ export async function toggleLike(
   return res.json();
 }
 
-export async function fetchComments(postId: number): Promise<Comment[]> {
-  const res = await fetch(`${getBackendBaseUrl()}/api/posts/${postId}/comments`, {
+export async function toggleCommentLike(
+  postId: number,
+  commentId: number,
+  fingerprint: string
+): Promise<{ liked: boolean; like_count: number }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getStoredToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`/api/posts/${postId}/comments/${commentId}/like`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ fingerprint }),
+  });
+  if (!res.ok) throw new Error("操作失败");
+  return res.json();
+}
+
+export async function fetchComments(postId: number, fingerprint = ""): Promise<Comment[]> {
+  const params = fingerprint ? `?fingerprint=${encodeURIComponent(fingerprint)}` : "";
+  const res = await fetch(`${getBackendBaseUrl()}/api/posts/${postId}/comments${params}`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("加载评论失败");
@@ -123,7 +147,8 @@ export async function fetchComments(postId: number): Promise<Comment[]> {
 export async function createComment(
   postId: number,
   body: string,
-  fingerprint: string
+  fingerprint: string,
+  parentId?: number
 ): Promise<Comment> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = getStoredToken();
@@ -131,7 +156,7 @@ export async function createComment(
   const res = await fetch(`/api/posts/${postId}/comments`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ body, fingerprint }),
+    body: JSON.stringify({ body, fingerprint, parent_id: parentId }),
   });
   if (!res.ok) {
     const t = await res.text();

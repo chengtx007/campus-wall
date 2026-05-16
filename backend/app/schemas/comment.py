@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, field_serializer
@@ -8,6 +10,7 @@ from app.schemas.post import AuthorInfo
 class CommentCreate(BaseModel):
     body: str = Field(..., min_length=1, max_length=2000)
     fingerprint: str = Field(..., min_length=1)
+    parent_id: int | None = None
 
 
 class CommentRead(BaseModel):
@@ -17,6 +20,10 @@ class CommentRead(BaseModel):
     fingerprint: str
     created_at: datetime
     author: AuthorInfo | None = None
+    parent_id: int | None = None
+    replies: list[CommentRead] = []
+    like_count: int = 0
+    is_liked: bool = False
 
     model_config = {"from_attributes": True}
 
