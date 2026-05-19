@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Post } from "@/lib/posts";
 import { fetchPostList, formatRelativeTime } from "@/lib/posts";
 import { categoryLabel, filterPostsByTab, type NavTabSlug } from "@/lib/categories";
+import { getFeedStateKey, readFeedState, saveFeedScroll, saveFeedState } from "@/lib/feed-state";
 import { useSearch } from "@/lib/search-context";
 import { getFingerprint } from "@/lib/fingerprint";
 import { LikeButton } from "./LikeButton";
 import { PostListSkeleton } from "./PostListSkeleton";
 import styles from "./PostList.module.css";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 40;
+const AUTO_LOAD_ROOT_MARGIN = "900px 0px";
 
 const EMPTY_MESSAGES: Record<string, string> = {
   all: "还没有帖子，来发第一帖吧。",
@@ -52,25 +55,69 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
   const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searching, setSearching] = useState(false);
   const loadingRef = useRef(false);
   const fp = useRef(getFingerprint());
+  const restoreScrollRef = useRef<number | null>(null);
+  const listRef = useRef<Post[]>(initialItems);
+  const totalRef = useRef(initialTotal);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const { query } = useSearch();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const tabFiltered = useMemo(() => filterPostsByTab(allItems, tab), [allItems, tab]);
   const visible = tabFiltered;
-
   const catParam = useMemo(() => (tab !== "all" && tab !== "hot") ? tab : "", [tab]);
+  const feedKey = useMemo(() => getFeedStateKey(tab, query), [tab, query]);
+  const currentFeedHref = useMemo(() => {
+    const qs = searchParams.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    listRef.current = allItems;
+    totalRef.current = total;
+  }, [allItems, total]);
+
+  const persistCurrentState = useCallback((scrollY = 0) => {
+    saveFeedState(feedKey, {
+      items: listRef.current,
+      total: totalRef.current,
+      scrollY,
+    });
+  }, [feedKey]);
+
+  useLayoutEffect(() => {
+    const cached = readFeedState(feedKey);
+    if (cached) {
+      setAllItems(cached.items);
+      setTotal(cached.total);
+      restoreScrollRef.current = cached.scrollY;
+      return;
+    }
+    setAllItems(initialItems);
+    setTotal(initialTotal);
+    restoreScrollRef.current = null;
+  }, [feedKey, initialItems, initialTotal]);
 
   const loadMore = useCallback(async () => {
-    if (loadingRef.current) return;
+    if (loadingRef.current || listRef.current.length >= totalRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setError(null);
     try {
       const sort = tab === "hot" ? "hot" : "latest";
-      const data = await fetchPostList(allItems.length, PAGE_SIZE, sort, fp.current, catParam, query);
-      setAllItems((prev) => [...prev, ...data.items]);
+      const data = await fetchPostList(listRef.current.length, PAGE_SIZE, sort, fp.current, catParam, query);
+      setAllItems((prev) => {
+        const seen = new Set(prev.map((item) => item.id));
+        const merged = [...prev];
+        for (const item of data.items) {
+          if (!seen.has(item.id)) {
+            merged.push(item);
+          }
+        }
+        return merged;
+      });
       setTotal(data.total);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
@@ -78,14 +125,18 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [allItems.length, tab, catParam, query]);
+  }, [tab, catParam, query]);
 
-  // Refresh with fingerprint on mount so likes persist across page loads
   useEffect(() => {
+    let cancelled = false;
+    const cached = readFeedState(feedKey);
+    const targetLimit = Math.max(cached?.items.length ?? 0, initialItems.length, PAGE_SIZE);
+
     const refresh = async () => {
       try {
         const sort = tab === "hot" ? "hot" : "latest";
-        const data = await fetchPostList(0, initialItems.length || PAGE_SIZE, sort, fp.current, catParam, query);
+        const data = await fetchPostList(0, targetLimit, sort, fp.current, catParam, query);
+        if (cancelled) return;
         setAllItems(data.items);
         setTotal(data.total);
       } catch {
@@ -93,37 +144,57 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
       }
     };
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Server-side search: refetch when query changes
-  useEffect(() => {
-    let cancelled = false;
-    const doSearch = async () => {
-      setSearching(true);
-      setError(null);
-      try {
-        const sort = tab === "hot" ? "hot" : "latest";
-        const data = await fetchPostList(0, PAGE_SIZE, sort, fp.current, catParam, query);
-        if (cancelled) return;
-        setAllItems(data.items);
-        setTotal(data.total);
-      } catch (e) {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "搜索失败");
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
+    return () => {
+      cancelled = true;
     };
-    doSearch();
-    return () => { cancelled = true; };
-  }, [query, tab, catParam]);
+  }, [feedKey, initialItems.length, tab, catParam, query]);
 
   useEffect(() => {
-    setAllItems(initialItems);
-    setTotal(initialTotal);
-    setError(null);
-  }, [initialItems, initialTotal]);
+    persistCurrentState(typeof window === "undefined" ? 0 : window.scrollY);
+  }, [feedKey, allItems, total, persistCurrentState]);
+
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        saveFeedScroll(feedKey, window.scrollY);
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [feedKey]);
+
+  useEffect(() => {
+    if (restoreScrollRef.current == null) return;
+    const target = restoreScrollRef.current;
+    restoreScrollRef.current = null;
+    requestAnimationFrame(() => {
+      window.scrollTo(0, target);
+      window.setTimeout(() => window.scrollTo(0, target), 80);
+    });
+  }, [feedKey, allItems.length]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || loading || allItems.length >= total) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadMore();
+        }
+      },
+      { rootMargin: AUTO_LOAD_ROOT_MARGIN }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [allItems.length, total, loading, loadMore]);
+
+  const handleOpenPost = useCallback(() => {
+    persistCurrentState(window.scrollY);
+  }, [persistCurrentState]);
 
   if (visible.length === 0) {
     const message = query.trim()
@@ -137,7 +208,11 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
       <ul className={styles.list}>
         {visible.map((p) => (
           <li key={p.id} className={styles.listItem}>
-            <Link href={`/post/${p.id}`} className={styles.card}>
+            <Link
+              href={`/post/${p.id}?from=${encodeURIComponent(currentFeedHref)}`}
+              className={styles.card}
+              onClick={handleOpenPost}
+            >
               <div className={styles.cardHead}>
                 <span>#{p.id}</span>
                 <span className={styles.badge}>{categoryLabel(p.category)}</span>
@@ -171,10 +246,10 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
           <p className={styles.loadMoreInfo} style={{ color: "var(--fg)" }}>{error}</p>
           <button className={styles.loadMoreBtn} onClick={loadMore}>重试</button>
         </div>
-      ) : allItems.length < total && !query.trim() ? (
+      ) : allItems.length < total ? (
         <div className={styles.loadMore}>
           <button className={styles.loadMoreBtn} onClick={loadMore} disabled={loading}>
-            {loading ? "加载中…" : "加载更多"}
+            {loading ? "加载中…" : "继续加载更多"}
           </button>
           <p className={styles.loadMoreInfo}>
             已加载 {allItems.length} / {total} 条
@@ -183,6 +258,7 @@ export function PostList({ initialItems, initialTotal, tab }: Props) {
       ) : null}
 
       {loading ? <PostListSkeleton count={3} /> : null}
+      <div ref={sentinelRef} className={styles.autoLoadSentinel} aria-hidden />
     </>
   );
 }

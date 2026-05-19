@@ -114,6 +114,41 @@ type TokenResponse struct {
 	User        UserResponse `json:"user"`
 }
 
+type ProfilePostSummary struct {
+	ID        int64  `json:"id"`
+	Title     string `json:"title"`
+	Category  string `json:"category"`
+	CreatedAt string `json:"created_at"`
+	ViewCount int    `json:"view_count"`
+	LikeCount int    `json:"like_count"`
+}
+
+type ProfileUserSummary struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Nickname string `json:"nickname"`
+}
+
+type UserProfileResponse struct {
+	ID             int64                `json:"id"`
+	Username       string               `json:"username"`
+	Nickname       string               `json:"nickname"`
+	CreatedAt      string               `json:"created_at"`
+	PostCount      int                  `json:"post_count"`
+	FollowersCount int                  `json:"followers_count"`
+	FollowingCount int                  `json:"following_count"`
+	IsFollowing    bool                 `json:"is_following"`
+	IsSelf         bool                 `json:"is_self"`
+	Posts          []ProfilePostSummary `json:"posts"`
+	LikedPosts     []ProfilePostSummary `json:"liked_posts"`
+	FollowingUsers []ProfileUserSummary `json:"following_users"`
+}
+
+type FollowToggleResponse struct {
+	Following      bool `json:"following"`
+	FollowersCount int  `json:"followers_count"`
+}
+
 type NotificationRead struct {
 	ID           int64   `json:"id"`
 	Type         string  `json:"type"`

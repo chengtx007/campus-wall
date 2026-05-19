@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { Post } from "@/lib/posts";
 import { deletePost, fetchPostById, formatRelativeTime, incrementView } from "@/lib/posts";
 import { categoryLabel, ticketStatusLabel } from "@/lib/categories";
@@ -17,8 +17,13 @@ import styles from "./page.module.css";
 export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = parseInt(String(params.id), 10);
   const { user } = useAuth();
+  const backHref = useMemo(() => {
+    const from = searchParams.get("from");
+    return from && from.startsWith("/") ? from : "/";
+  }, [searchParams]);
 
   const [post, setPost] = useState<Post | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +39,7 @@ export default function PostDetailPage() {
     setDeleting(true);
     try {
       await deletePost(id);
-      router.push("/");
+      router.push(backHref);
     } catch (e) {
       alert(e instanceof Error ? e.message : "删除失败");
       setDeleting(false);
@@ -76,7 +81,7 @@ export default function PostDetailPage() {
   if (loading) {
     return (
       <main className={styles.main}>
-        <Link className={styles.backLink} href="/">← 返回首页</Link>
+        <Link className={styles.backLink} href={backHref}>← 返回首页</Link>
         <div className={styles.card}>
           <div className={styles.skeleton} style={{ width: "60%" }} />
           <div className={styles.skeleton} style={{ width: "30%", height: "0.7rem" }} />
@@ -93,7 +98,7 @@ export default function PostDetailPage() {
       <main className={styles.main}>
         <p className={styles.error}>{error ?? "帖子不存在"}</p>
         <div className={styles.footer}>
-          <Link className={styles.backLink} href="/">← 返回首页</Link>
+          <Link className={styles.backLink} href={backHref}>← 返回首页</Link>
         </div>
       </main>
     );
@@ -101,7 +106,7 @@ export default function PostDetailPage() {
 
   return (
     <main className={styles.main}>
-      <Link className={styles.backLink} href="/">← 返回首页</Link>
+      <Link className={styles.backLink} href={backHref}>← 返回首页</Link>
 
       <article className={styles.card}>
         <div className={styles.head}>
@@ -147,7 +152,7 @@ export default function PostDetailPage() {
       <CommentSection postId={post.id} />
 
       <div className={styles.footer}>
-        <Link className={styles.backLink} href="/">← 返回首页</Link>
+        <Link className={styles.backLink} href={backHref}>← 返回首页</Link>
       </div>
 
       <ReportModal postId={post.id} open={reportOpen} onClose={() => setReportOpen(false)} />

@@ -111,6 +111,12 @@ func initializeDatabase(db *sql.DB) error {
 			resolved_at DATETIME,
 			resolved_by TEXT
 		)`,
+		`CREATE TABLE IF NOT EXISTS follows (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			followed_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range statements {
@@ -162,8 +168,11 @@ func initializeDatabase(db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_reports_post_id ON reports(post_id)",
 		"CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)",
 		"CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)",
+		"CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id)",
+		"CREATE INDEX IF NOT EXISTS idx_follows_followed_id ON follows(followed_id)",
 		"CREATE UNIQUE INDEX IF NOT EXISTS uq_post_fingerprint ON likes(post_id, fingerprint) WHERE comment_id IS NULL",
 		"CREATE UNIQUE INDEX IF NOT EXISTS uq_comment_fingerprint ON likes(comment_id, fingerprint) WHERE comment_id IS NOT NULL",
+		"CREATE UNIQUE INDEX IF NOT EXISTS uq_follows_pair ON follows(follower_id, followed_id)",
 	}
 
 	for _, stmt := range indexes {

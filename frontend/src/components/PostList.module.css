@@ -176,6 +176,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.autoLoadSentinel {
+  height: 1px;
+}
+
 .empty {
   margin: 0;
   padding: 2.5rem 1.5rem;

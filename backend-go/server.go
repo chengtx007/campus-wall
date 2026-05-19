@@ -52,6 +52,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.limit("login", 20, time.Minute, s.handleLogin))
 	mux.HandleFunc("GET /api/auth/me", s.handleMe)
 	mux.HandleFunc("GET /api/auth/users/{username}", s.handleUserProfile)
+	mux.HandleFunc("POST /api/auth/users/{username}/follow", s.limit("follow-user", 30, time.Minute, s.handleToggleFollow))
 
 	mux.HandleFunc("GET /api/posts", s.handleListPosts)
 	mux.HandleFunc("POST /api/posts", s.limit("create-post", 10, time.Minute, s.handleCreatePost))

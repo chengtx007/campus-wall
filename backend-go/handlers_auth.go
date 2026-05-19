@@ -214,6 +214,38 @@ func (s *Server) handleUserProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	currentUser, _ := s.optionalCurrentUser(r)
+	isSelf := currentUser != nil && currentUser.ID == user.ID
+
+	var postCount int
+	if err := s.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM posts WHERE user_id = ? AND status = 'approved'`, user.ID).Scan(&postCount); err != nil {
+		writeDetail(w, http.StatusInternalServerError, "加载失败")
+		return
+	}
+
+	var followersCount int
+	if err := s.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM follows WHERE followed_id = ?`, user.ID).Scan(&followersCount); err != nil {
+		writeDetail(w, http.StatusInternalServerError, "加载失败")
+		return
+	}
+
+	var followingCount int
+	if err := s.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM follows WHERE follower_id = ?`, user.ID).Scan(&followingCount); err != nil {
+		writeDetail(w, http.StatusInternalServerError, "加载失败")
+		return
+	}
+
+	isFollowing := false
+	if currentUser != nil && currentUser.ID != user.ID {
+		var followID int64
+		err := s.db.QueryRowContext(r.Context(), `SELECT id FROM follows WHERE follower_id = ? AND followed_id = ? LIMIT 1`, currentUser.ID, user.ID).Scan(&followID)
+		if err != nil && !sqlErrNotFound(err) {
+			writeDetail(w, http.StatusInternalServerError, "加载失败")
+			return
+		}
+		isFollowing = followID != 0
+	}
+
 	rows, err := s.db.QueryContext(r.Context(), `SELECT id, user_id, title, body, category, image_urls, view_count, like_count, status, ticket_status, created_at FROM posts WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 30`, user.ID)
 	if err != nil {
 		writeDetail(w, http.StatusInternalServerError, "加载失败")
@@ -241,24 +273,182 @@ func (s *Server) handleUserProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	postList := make([]map[string]any, 0, len(postReads))
+	postList := make([]ProfilePostSummary, 0, len(postReads))
 	for _, post := range postReads {
-		postList = append(postList, map[string]any{
-			"id":         post.ID,
-			"title":      post.Title,
-			"category":   post.Category,
-			"created_at": post.CreatedAt,
-			"view_count": post.ViewCount,
-			"like_count": post.LikeCount,
+		postList = append(postList, ProfilePostSummary{
+			ID:        post.ID,
+			Title:     post.Title,
+			Category:  post.Category,
+			CreatedAt: post.CreatedAt,
+			ViewCount: post.ViewCount,
+			LikeCount: post.LikeCount,
 		})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"id":         user.ID,
-		"username":   user.Username,
-		"nickname":   user.Nickname,
-		"created_at": normalizeTimestamp(user.CreatedAt),
-		"post_count": len(postList),
-		"posts":      postList,
+	likedPosts := make([]ProfilePostSummary, 0)
+	followingUsers := make([]ProfileUserSummary, 0)
+	if isSelf {
+		likedPosts, err = s.profileLikedPosts(r, user.ID)
+		if err != nil {
+			writeDetail(w, http.StatusInternalServerError, "加载失败")
+			return
+		}
+		followingUsers, err = s.profileFollowingUsers(r, user.ID)
+		if err != nil {
+			writeDetail(w, http.StatusInternalServerError, "加载失败")
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, UserProfileResponse{
+		ID:             user.ID,
+		Username:       user.Username,
+		Nickname:       user.Nickname,
+		CreatedAt:      normalizeTimestamp(user.CreatedAt),
+		PostCount:      postCount,
+		FollowersCount: followersCount,
+		FollowingCount: followingCount,
+		IsFollowing:    isFollowing,
+		IsSelf:         isSelf,
+		Posts:          postList,
+		LikedPosts:     likedPosts,
+		FollowingUsers: followingUsers,
 	})
+}
+
+func (s *Server) handleToggleFollow(w http.ResponseWriter, r *http.Request) {
+	username := strings.TrimSpace(r.PathValue("username"))
+	targetUser, err := s.getUserByUsername(r.Context(), username)
+	if err != nil {
+		writeDetail(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+
+	currentUser, err := s.currentUser(r)
+	if err != nil {
+		writeDetail(w, authErrorStatus(err.Error()), err.Error())
+		return
+	}
+	if currentUser.ID == targetUser.ID {
+		writeDetail(w, http.StatusBadRequest, "不能关注自己")
+		return
+	}
+
+	tx, err := s.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeDetail(w, http.StatusInternalServerError, "操作失败")
+		return
+	}
+	defer tx.Rollback()
+
+	var existingID int64
+	err = tx.QueryRowContext(r.Context(), `SELECT id FROM follows WHERE follower_id = ? AND followed_id = ? LIMIT 1`, currentUser.ID, targetUser.ID).Scan(&existingID)
+	if err != nil && !sqlErrNotFound(err) {
+		writeDetail(w, http.StatusInternalServerError, "操作失败")
+		return
+	}
+
+	following := true
+	if existingID != 0 {
+		if _, err := tx.ExecContext(r.Context(), `DELETE FROM follows WHERE id = ?`, existingID); err != nil {
+			writeDetail(w, http.StatusInternalServerError, "操作失败")
+			return
+		}
+		following = false
+	} else {
+		if _, err := tx.ExecContext(r.Context(), `INSERT INTO follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)`, currentUser.ID, targetUser.ID, currentTimestamp()); err != nil {
+			writeDetail(w, http.StatusInternalServerError, "操作失败")
+			return
+		}
+	}
+
+	var followersCount int
+	if err := tx.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM follows WHERE followed_id = ?`, targetUser.ID).Scan(&followersCount); err != nil {
+		writeDetail(w, http.StatusInternalServerError, "操作失败")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeDetail(w, http.StatusInternalServerError, "操作失败")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, FollowToggleResponse{
+		Following:      following,
+		FollowersCount: followersCount,
+	})
+}
+
+func (s *Server) profileLikedPosts(r *http.Request, userID int64) ([]ProfilePostSummary, error) {
+	rows, err := s.db.QueryContext(r.Context(), `
+		SELECT p.id, p.user_id, p.title, p.body, p.category, p.image_urls, p.view_count, p.like_count, p.status, p.ticket_status, p.created_at
+		FROM posts p
+		JOIN (
+			SELECT post_id, MAX(created_at) AS liked_at
+			FROM likes
+			WHERE user_id = ? AND comment_id IS NULL AND post_id IS NOT NULL
+			GROUP BY post_id
+		) l ON l.post_id = p.id
+		WHERE p.status = 'approved'
+		ORDER BY l.liked_at DESC, p.created_at DESC
+		LIMIT 50
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	posts := make([]postRecord, 0)
+	for rows.Next() {
+		post, err := scanPost(rows)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, post)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	postReads, err := s.buildPostReads(r.Context(), posts, "")
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]ProfilePostSummary, 0, len(postReads))
+	for _, post := range postReads {
+		result = append(result, ProfilePostSummary{
+			ID:        post.ID,
+			Title:     post.Title,
+			Category:  post.Category,
+			CreatedAt: post.CreatedAt,
+			ViewCount: post.ViewCount,
+			LikeCount: post.LikeCount,
+		})
+	}
+	return result, nil
+}
+
+func (s *Server) profileFollowingUsers(r *http.Request, userID int64) ([]ProfileUserSummary, error) {
+	rows, err := s.db.QueryContext(r.Context(), `
+		SELECT u.id, u.username, u.nickname
+		FROM follows f
+		JOIN users u ON u.id = f.followed_id
+		WHERE f.follower_id = ?
+		ORDER BY f.created_at DESC, u.id DESC
+		LIMIT 50
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]ProfileUserSummary, 0)
+	for rows.Next() {
+		var item ProfileUserSummary
+		if err := rows.Scan(&item.ID, &item.Username, &item.Nickname); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
 }

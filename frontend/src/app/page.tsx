@@ -7,6 +7,7 @@ import { fetchPostList } from "@/lib/posts";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
+const INITIAL_PAGE_SIZE = 40;
 
 type PageProps = {
   searchParams: Promise<{ tab?: string | string[] }>;
@@ -23,7 +24,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   try {
     const sort = tab === "hot" ? "hot" : "latest";
     const category = (tab !== "all" && tab !== "hot") ? tab : "";
-    const data = await fetchPostList(0, 20, sort, "", category);
+    const data = await fetchPostList(0, INITIAL_PAGE_SIZE, sort, "", category);
     items = data.items;
     total = data.total;
   } catch (e) {
